@@ -1,7 +1,7 @@
 # coding: utf-8
 
 # system packages
-
+from functools import partial
 # third-party packages
 
 # own packages
@@ -20,6 +20,21 @@ geohash length	lat bits	lng bits	lat error	lng error	km error
 7				17			18			±0.00068	±0.00068	±0.076
 8				20			20			±0.000085	±0.00017	±0.019
 """
+
+
+class EncodedPoint(object):
+    def __init__(self, code=0, max_latitude=90.0, max_longitude=180.0,
+                 min_latitude=-90.0, min_longitude=-180.0):
+        self.code = code
+        self.max_latitude = max_latitude
+        self.max_longitude = max_longitude
+        self.min_latitude = min_latitude
+        self.min_longitude = min_longitude
+
+    def __str__(self):
+        return "{} {} {} {} {}".format(self.code, self.max_latitude,
+                                       self.max_longitude,
+                                       self.min_latitude, self.min_longitude)
 
 
 def encode(latitude, longitude, precision):
@@ -53,34 +68,33 @@ def encode(latitude, longitude, precision):
             res += const.BASE32[int(bit, base=2)]
             bit = ""
             length += 1
-    return res, max_latitude, max_longitude, min_latitude, min_longitude
+    return EncodedPoint(res, max_latitude, max_longitude,
+                        min_latitude, min_longitude)
 
 
 def neighbors(latitude, longitude, precision):
     self_code = encode(latitude, longitude, precision)
-    latitude_delta = self_code[1] - self_code[3]
-    longitude_delta = self_code[2] - self_code[4]
-    up = encode(latitude + latitude_delta / 2, longitude, precision)
-    down = encode(latitude - latitude_delta / 2, longitude, precision)
-    left = encode(latitude, longitude - longitude_delta / 2, precision)
-    right = encode(latitude, longitude + longitude_delta / 2, precision)
-    left_up = encode(latitude + latitude_delta / 2,
-                     longitude - longitude_delta / 2, precision)
-    left_down = encode(latitude - latitude_delta / 2,
-                       longitude - longitude_delta / 2, precision)
-    right_up = encode(latitude + latitude_delta / 2,
-                      longitude + longitude_delta / 2, precision)
-    right_down = encode(latitude + latitude_delta / 2,
-                        longitude - longitude_delta / 2, precision)
-    return up, down, left, right, left_up, left_down, right_up, right_down
+    latitude_delta = (self_code.max_latitude - self_code.min_latitude) / 2
+    longitude_delta = (self_code.max_longitude - self_code.min_longitude) / 2
+
+    direction = [(-1, 0), (0, -1), (1, 0), (0, 1), (-1, -1), (-1, 1),
+                 (1, -1), (1, 1)]
+
+    partial_func = partial(encode, precision=precision)
+    return list(map(lambda item: partial_func(item[0] * latitude_delta,
+                                         item[1] * longitude_delta), direction))
 
 
 def main():
     latitude = 42.6
     longitude = -5.6
     precision = 5
-    code, max_latitude, max_longitude, min_latitude, min_longitude = \
+    encoded_point = \
         encode(latitude, longitude, precision)
-    print(code, max_latitude, max_longitude, min_latitude, min_longitude)
-    print(neighbors(latitude, longitude, precision))
-main()
+    print(encoded_point)
+    for item in neighbors(latitude, longitude, precision):
+        print(item)
+
+
+if __name__ == "__main__":
+    main()
